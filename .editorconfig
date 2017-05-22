@@ -1,3 +1,7 @@
+[*.js]
+indent_style = space
+indent_size = 2
+
 [*.{cc,hh,cpp,hpp}]
 indent_style = space
 indent_size = 2

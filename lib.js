@@ -12,4 +12,11 @@ exports.createShares = function createShares(data, n, k) {
       _sss.createShares(data, n, k, random, resolve);
     });
   });
-}
+};
+
+
+exports.combineShares = function combineShares(shares) {
+  return new Promise((resolve) => {
+    _sss.combineShares(shares, resolve);
+  });
+};

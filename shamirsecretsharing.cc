@@ -11,7 +11,7 @@ class CreateSharesWorker : public Nan::AsyncWorker {
  public:
   CreateSharesWorker(char* data, uint8_t n, uint8_t k, char* random_bytes,
                      Nan::Callback *callback)
-      : AsyncWorker(callback), n(n), k(n) {
+      : AsyncWorker(callback), n(n), k(k) {
     Nan::HandleScope scope;
 
     memcpy(this->data, data, sss_MLEN);
@@ -19,32 +19,36 @@ class CreateSharesWorker : public Nan::AsyncWorker {
     size_t output_size = n * sss_SHARE_SERIALIZED_LEN;
     if (output_size / sss_SHARE_SERIALIZED_LEN != n) {
         // Overflow occurred! Is an unreachable state, because `n` is
-        // between 0 and 256, and `sss_CLEN` is a small static value (80).
+        // between 0 and 256, and `sss_SHARE_SERIALIZED_LEN` is a small value.
         Nan::ThrowError("unreachable state");
     }
     this->output = new char[output_size]();
-    this->shares = new sss_Share[output_size]();
   }
-  ~CreateSharesWorker() {}
+
+  ~CreateSharesWorker() {
+    delete[] this->output;
+  }
 
   void Execute() {
+    sss_Share* shares = new sss_Share[n]();
     sss_create_shares(shares, (uint8_t*) data, n, k, (uint8_t*) random_bytes);
     for (size_t idx = 0; idx < n; ++idx) {
       // Multiplication was already checked during constructor
       size_t offset = idx * sss_SHARE_SERIALIZED_LEN;
       sss_serialize_share((uint8_t*) &output[offset], &shares[idx]);
     }
+    delete[] shares;
   }
 
   void HandleOKCallback() {
     Nan::HandleScope scope;
     v8::Isolate* isolate = v8::Isolate::GetCurrent();
 
-    // Copy the output to a node.js buffer
+    // Copy the output to a list of node.js buffers
     v8::Local<v8::Array> array = v8::Array::New(isolate, n);
     for (size_t idx = 0; idx < n; ++idx) {
         size_t offset = idx * sss_SHARE_SERIALIZED_LEN;
-        array->Set(idx, Nan::CopyBuffer((char*) &output[offset],
+        array->Set(idx, Nan::CopyBuffer(&output[offset],
             sss_SHARE_SERIALIZED_LEN).ToLocalChecked());
     }
     v8::Local<v8::Value> argv[] = { array };
@@ -58,7 +62,61 @@ class CreateSharesWorker : public Nan::AsyncWorker {
   char data[sss_MLEN];
   char random_bytes[32];
   char *output;
-  sss_Share *shares;
+};
+
+
+class CombineSharesWorker : public Nan::AsyncWorker {
+ public:
+  CombineSharesWorker(v8::Local<v8::Object>* shares, uint8_t k,
+                      Nan::Callback *callback)
+      : AsyncWorker(callback), k(k) {
+    Nan::HandleScope scope;
+
+    size_t input_size = k * sss_SHARE_SERIALIZED_LEN;
+    if (input_size / sss_SHARE_SERIALIZED_LEN != k) {
+        // Overflow occurred! Is an unreachable state, because `k` is
+        // between 0 and 256, and `sss_SHARE_SERIALIZED_LEN` is a small value.
+        Nan::ThrowError("unreachable state");
+    }
+    this->input = new char[input_size];
+    for (auto idx = 0; idx < k; ++idx) {
+      memcpy(&this->input[idx * sss_SHARE_SERIALIZED_LEN],
+             node::Buffer::Data(shares[idx]),
+             sss_SHARE_SERIALIZED_LEN);
+    }
+  }
+
+  ~CombineSharesWorker() {
+    delete[] this->input;
+  }
+
+  void Execute() {
+    sss_Share* shares = new sss_Share[k]();
+    for (auto idx = 0; idx < k; ++idx) {
+      // Multiplication was already checked during constructor
+      size_t offset = idx * sss_SHARE_SERIALIZED_LEN;
+      sss_unserialize_share(&shares[idx], (uint8_t*) &input[offset]);
+    }
+    sss_combine_shares((uint8_t*) data, shares, k);
+    delete[] shares;
+  }
+
+  void HandleOKCallback() {
+    Nan::HandleScope scope;
+
+    // Copy the output to a node.js buffer
+    v8::Local<v8::Value> argv[] = {
+      Nan::CopyBuffer(data, sss_MLEN).ToLocalChecked()
+    };
+
+    // Call the provided callback
+    callback->Call(1, argv);
+  }
+
+ private:
+  uint8_t k;
+  char *input;
+  char data[sss_MLEN];
 };
 
 
@@ -119,9 +177,55 @@ NAN_METHOD(CreateShares) {
 }
 
 
+NAN_METHOD(CombineShares) {
+  Nan::HandleScope scope;
+
+  // Type check the argument `shares` and `callback`
+  v8::Local<v8::Object> shares_obj = info[0]->ToObject();
+  if (!shares_obj->IsArray()) {
+    Nan::ThrowTypeError("`data` must be an array of buffers");
+    return;
+  }
+  v8::Local<v8::Array> shares_arr = shares_obj.As<v8::Array>();
+  if (!info[1]->IsFunction()) {
+    Nan::ThrowTypeError("`callback` must be a function");
+    return;
+  }
+  Nan::Callback *callback = new Nan::Callback(info[1].As<v8::Function>());
+
+  // Extract all the share buffers
+  auto k = shares_arr->Length();
+  v8::Local<v8::Object> shares[k];
+  for (auto idx = 0; idx < k; ++idx) {
+    shares[idx] = shares_arr->Get(idx)->ToObject();
+  }
+
+  // Check if all the elements in the array are buffers
+  for (auto idx = 0; idx < k; ++idx) {
+    if (!node::Buffer::HasInstance(shares[idx])) {
+      Nan::ThrowTypeError("array element is not a buffer");
+      return;
+    }
+  }
+
+  // Check if all the elements in the array are of the correct length
+  for (auto idx = 0; idx < k; ++idx) {
+    if (node::Buffer::Length(shares[idx]) != sss_SHARE_SERIALIZED_LEN) {
+      Nan::ThrowTypeError("array buffer element is not of the correct length");
+      return;
+    }
+  }
+
+  // Create worker
+  CombineSharesWorker* worker = new CombineSharesWorker(shares, k, callback);
+  AsyncQueueWorker(worker);
+}
+
+
 void Initialize(v8::Local<v8::Object> exports, v8::Local<v8::Object> module) {
   Nan::HandleScope scope;
   Nan::SetMethod(exports, "createShares", CreateShares);
+  Nan::SetMethod(exports, "combineShares", CombineShares);
 }
 
 
