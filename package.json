@@ -1,0 +1,17 @@
+{
+  "name": "shamirsecretsharing",
+  "version": "0.1.0",
+  "description": "node.js bindings for the sss secret sharing library",
+  "author": "Daan Sprenkels",
+  "repository": "https://github.com/dsprenkels/sss-node.git",
+  "license": "MIT",
+  "main": "lib.js",
+  "dependencies": {
+    "nan": "2.6"
+  },
+  "scripts": {
+    "test": "node test",
+    "install": "node-gyp rebuild"
+  },
+  "gypfile": true
+}

@@ -1,0 +1,6 @@
+[*.{cc,hh,cpp,hpp}]
+indent_style = space
+indent_size = 2
+
+[*.gyp]
+tab_width = 2
