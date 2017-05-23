@@ -1,5 +1,6 @@
 #include <node.h>
 #include <nan.h>
+#include <memory>
 
 extern "C" {
   #include "sss/sss.h"
@@ -22,22 +23,18 @@ class CreateSharesWorker : public Nan::AsyncWorker {
         // between 0 and 256, and `sss_SHARE_SERIALIZED_LEN` is a small value.
         Nan::ThrowError("unreachable state");
     }
-    this->output = new char[output_size]();
-  }
-
-  ~CreateSharesWorker() {
-    delete[] this->output;
+    this->output = std::unique_ptr<char[]>{ new char[output_size]() };
   }
 
   void Execute() {
-    sss_Share* shares = new sss_Share[n]();
-    sss_create_shares(shares, (uint8_t*) data, n, k, (uint8_t*) random_bytes);
+    std::unique_ptr<sss_Share[]> shares(new sss_Share[n]());
+    sss_create_shares(&shares[0], (uint8_t*) data, n, k,
+                      (uint8_t*) random_bytes);
     for (size_t idx = 0; idx < n; ++idx) {
       // Multiplication was already checked during constructor
       size_t offset = idx * sss_SHARE_SERIALIZED_LEN;
       sss_serialize_share((uint8_t*) &output[offset], &shares[idx]);
     }
-    delete[] shares;
   }
 
   void HandleOKCallback() {
@@ -61,7 +58,7 @@ class CreateSharesWorker : public Nan::AsyncWorker {
   uint8_t n, k;
   char data[sss_MLEN];
   char random_bytes[32];
-  char *output;
+  std::unique_ptr<char[]> output;
 };
 
 
@@ -78,7 +75,7 @@ class CombineSharesWorker : public Nan::AsyncWorker {
         // between 0 and 256, and `sss_SHARE_SERIALIZED_LEN` is a small value.
         Nan::ThrowError("unreachable state");
     }
-    this->input = new char[input_size];
+    this->input = std::unique_ptr<char[]>{ new char[input_size] };
     for (auto idx = 0; idx < k; ++idx) {
       memcpy(&this->input[idx * sss_SHARE_SERIALIZED_LEN],
              node::Buffer::Data(shares[idx]),
@@ -86,19 +83,14 @@ class CombineSharesWorker : public Nan::AsyncWorker {
     }
   }
 
-  ~CombineSharesWorker() {
-    delete[] this->input;
-  }
-
   void Execute() {
-    sss_Share* shares = new sss_Share[k]();
+    std::unique_ptr<sss_Share[]> shares(new sss_Share[k]());
     for (auto idx = 0; idx < k; ++idx) {
       // Multiplication was already checked during constructor
       size_t offset = idx * sss_SHARE_SERIALIZED_LEN;
       sss_unserialize_share(&shares[idx], (uint8_t*) &input[offset]);
     }
-    sss_combine_shares((uint8_t*) data, shares, k);
-    delete[] shares;
+    sss_combine_shares((uint8_t*) data, &shares[0], k);
   }
 
   void HandleOKCallback() {
@@ -115,7 +107,7 @@ class CombineSharesWorker : public Nan::AsyncWorker {
 
  private:
   uint8_t k;
-  char *input;
+  std::unique_ptr<char[]> input;
   char data[sss_MLEN];
 };
 
