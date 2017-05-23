@@ -2,6 +2,11 @@
 #include <nan.h>
 #include <memory>
 
+#define TYPECHK(expr, msg) if (! expr) { \
+  Nan::ThrowTypeError(msg); \
+  return; \
+}
+
 extern "C" {
   #include "sss/sss.h"
   #include "sss/serialize.h"
@@ -90,16 +95,24 @@ class CombineSharesWorker : public Nan::AsyncWorker {
       size_t offset = idx * sss_SHARE_SERIALIZED_LEN;
       sss_unserialize_share(&shares[idx], (uint8_t*) &input[offset]);
     }
-    sss_combine_shares((uint8_t*) data, &shares[0], k);
+    status = sss_combine_shares((uint8_t*) data, &shares[0], k);
   }
 
   void HandleOKCallback() {
     Nan::HandleScope scope;
+    v8::Isolate* isolate = v8::Isolate::GetCurrent();
 
     // Copy the output to a node.js buffer
-    v8::Local<v8::Value> argv[] = {
-      Nan::CopyBuffer(data, sss_MLEN).ToLocalChecked()
-    };
+    v8::Local<v8::Value> argv[2];
+    if (status == 0) {
+      // All went well, call the callback with (buffer, null)
+      argv[0] = Nan::CopyBuffer(data, sss_MLEN).ToLocalChecked();
+      argv[1] = Nan::Undefined();
+    } else {
+      // Some kind of error occurred, call the buffer with (null, status)
+      argv[0] = Nan::Null();
+      argv[1] = v8::Integer::New(isolate, status);
+    }
 
     // Call the provided callback
     callback->Call(1, argv);
@@ -108,6 +121,7 @@ class CombineSharesWorker : public Nan::AsyncWorker {
  private:
   uint8_t k;
   std::unique_ptr<char[]> input;
+  int status;
   char data[sss_MLEN];
 };
 
@@ -115,32 +129,32 @@ class CombineSharesWorker : public Nan::AsyncWorker {
 NAN_METHOD(CreateShares) {
   Nan::HandleScope scope;
 
-  // Type check the argument `data`
-  v8::Local<v8::Object> data = info[0]->ToObject();
-  if (!node::Buffer::HasInstance(data)) {
-    Nan::ThrowTypeError("`data` must be an instance of Buffer");
-    return;
-  }
-  if (!info[1]->IsUint32()) {
-    Nan::ThrowTypeError("`n` is not a valid integer");
-    return;
-  }
-  uint32_t n = info[1]->Uint32Value();
-  if (!info[2]->IsUint32()) {
-    Nan::ThrowTypeError("`k` is not a valid integer");
-    return;
-  }
-  uint32_t k = info[1]->Uint32Value();
-  v8::Local<v8::Object> random_bytes = info[3]->ToObject();
-  if (!node::Buffer::HasInstance(random_bytes)) {
-    Nan::ThrowTypeError("`random_bytes` must be an instance of Buffer");
-    return;
-  }
-  if (!info[4]->IsFunction()) {
-    Nan::ThrowTypeError("`callback` must be a function");
-    return;
-  }
-  Nan::Callback *callback = new Nan::Callback(info[4].As<v8::Function>());
+  v8::Local<v8::Value> data_val = info[0];
+  v8::Local<v8::Value> n_val = info[1];
+  v8::Local<v8::Value> k_val = info[2];
+  v8::Local<v8::Value> random_bytes_val = info[3];
+  v8::Local<v8::Value> callback_val = info[4];
+
+  // Type check the arguments
+  TYPECHK(!data_val->IsUndefined(), "`data` is not defined");
+  TYPECHK(!n_val->IsUndefined(), "`n` is not defined");
+  TYPECHK(!k_val->IsUndefined(), "`k` is not defined");
+  TYPECHK(!random_bytes_val->IsUndefined(), "`random_bytes` is not defined");
+  TYPECHK(!callback_val->IsUndefined(), "`callback` is not defined");
+
+  TYPECHK(data_val->IsObject(), "`data` is not an Object");
+  v8::Local<v8::Object> data = data_val->ToObject();
+  TYPECHK(node::Buffer::HasInstance(data), "`data` must be a Buffer")
+  TYPECHK(n_val->IsUint32(), "`n` is not a valid integer");
+  uint32_t n = n_val->Uint32Value();
+  TYPECHK(k_val->IsUint32(), "`k` is not a valid integer");
+  uint32_t k = k_val->Uint32Value();
+  TYPECHK(random_bytes_val->IsObject(), "`random_bytes` is not an Object");
+  v8::Local<v8::Object> random_bytes = random_bytes_val->ToObject();
+  TYPECHK(node::Buffer::HasInstance(random_bytes),
+          "`random_bytes` must be a Buffer")
+  TYPECHK(callback_val->IsFunction(), "`callback` must be a function");
+  Nan::Callback *callback = new Nan::Callback(callback_val.As<v8::Function>());
 
   // Check if the buffers have the correct lengths
   if (node::Buffer::Length(data) != sss_MLEN) {
@@ -172,18 +186,19 @@ NAN_METHOD(CreateShares) {
 NAN_METHOD(CombineShares) {
   Nan::HandleScope scope;
 
+  v8::Local<v8::Value> shares_val = info[0];
+  v8::Local<v8::Value> callback_val = info[1];
+
   // Type check the argument `shares` and `callback`
-  v8::Local<v8::Object> shares_obj = info[0]->ToObject();
-  if (!shares_obj->IsArray()) {
-    Nan::ThrowTypeError("`data` must be an array of buffers");
-    return;
-  }
+  TYPECHK(!shares_val->IsUndefined(), "`shares` is not defined");
+  TYPECHK(!callback_val->IsUndefined(), "`callback` is not defined");
+
+  TYPECHK(shares_val->IsObject(), "`data` is not an initialized Object")
+  v8::Local<v8::Object> shares_obj = shares_val->ToObject();
+  TYPECHK(shares_val->IsArray(), "`data` must be an array of buffers");
   v8::Local<v8::Array> shares_arr = shares_obj.As<v8::Array>();
-  if (!info[1]->IsFunction()) {
-    Nan::ThrowTypeError("`callback` must be a function");
-    return;
-  }
-  Nan::Callback *callback = new Nan::Callback(info[1].As<v8::Function>());
+  TYPECHK(callback_val->IsFunction(), "`callback` must be a function");
+  Nan::Callback *callback = new Nan::Callback(callback_val.As<v8::Function>());
 
   // Extract all the share buffers
   auto k = shares_arr->Length();

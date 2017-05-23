@@ -2,7 +2,7 @@
   "targets": [
     {
       "target_name": "shamirsecretsharing",
-      "cflags": ["-g -O2 -Wall -Wno-sign-compare"],
+      "cflags": ["-g -Wall -Wno-sign-compare"],
       "sources": [
         "shamirsecretsharing.cc",
         "sss/sss.c",
