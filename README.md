@@ -70,8 +70,10 @@ sharing and recombining a secret using this library is very fast. But Node.js
 is an asynchronous platform after all, so we should use it in that way.
 
 Note: The Node.js bindings use a different random source than the original
-library, namely the builtin Node.js random generator (which I believe is from
-OpenSSL).
+sss library, namely the builtin Node.js random generator rather than calling
+the OS directly. This is done to make these bindings as portable as possible.
+The Node.js runtime calls OpenSSL for its cryptograpic functions, so it can be
+considered secure.
 
 ## Questions
 
