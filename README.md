@@ -57,6 +57,11 @@ let restoredPromise = newSharesPromise.then((x) => {
 restoredPromise.then((x) => {
     console.log(x);
 });
+
+// The shares could not restore the secret
+restoredPromise.catch((x) => {
+    console.log("Error: " + x)
+});
 ```
 
 ## Technical details

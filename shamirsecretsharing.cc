@@ -101,16 +101,15 @@ class CombineSharesWorker : public Nan::AsyncWorker {
   void HandleOKCallback() {
     Nan::HandleScope scope;
 
+    v8::Local<v8::Value> argv[1];
     if (status == 0) {
       // All went well, call the callback the restored buffer
-      v8::Local<v8::Value> argv[] = {
-        Nan::CopyBuffer(data, sss_MLEN).ToLocalChecked()
-      };
-      callback->Call(1, argv);
+      argv[0] = Nan::CopyBuffer(data, sss_MLEN).ToLocalChecked();
     } else {
-      // Some kind of error occurred, reject the promise
-      Nan::ThrowError("invalid or too fex shares provided");
+      // Some kind of error occurred, return null
+      argv[0] = Nan::Null();
     }
+    callback->Call(1, argv);
   }
 
  private:

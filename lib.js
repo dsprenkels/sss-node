@@ -18,5 +18,11 @@ exports.createShares = function createShares(data, n, k) {
 exports.combineShares = function combineShares(shares) {
   return new Promise((resolve) => {
     _sss.combineShares(shares, resolve);
+  }).then((x) => {
+    if (x === null) {
+      throw "invalid or too few shares provided";
+    } else {
+      return x;
+    }
   });
 };
