@@ -100,22 +100,17 @@ class CombineSharesWorker : public Nan::AsyncWorker {
 
   void HandleOKCallback() {
     Nan::HandleScope scope;
-    v8::Isolate* isolate = v8::Isolate::GetCurrent();
 
-    // Copy the output to a node.js buffer
-    v8::Local<v8::Value> argv[2];
     if (status == 0) {
-      // All went well, call the callback with (buffer, null)
-      argv[0] = Nan::CopyBuffer(data, sss_MLEN).ToLocalChecked();
-      argv[1] = Nan::Undefined();
+      // All went well, call the callback the restored buffer
+      v8::Local<v8::Value> argv[] = {
+        Nan::CopyBuffer(data, sss_MLEN).ToLocalChecked()
+      };
+      callback->Call(1, argv);
     } else {
-      // Some kind of error occurred, call the buffer with (null, status)
-      argv[0] = Nan::Null();
-      argv[1] = v8::Integer::New(isolate, status);
+      // Some kind of error occurred, reject the promise
+      Nan::ThrowError("invalid or too fex shares provided");
     }
-
-    // Call the provided callback
-    callback->Call(1, argv);
   }
 
  private:
