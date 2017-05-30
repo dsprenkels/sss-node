@@ -4,7 +4,7 @@ This repository contains a Node.js binding for my general-purpose [Shamir secret
 sharing library][sss]. This library allow a user to split secret data into
 a number of different _shares_. With the posession of some or all of these
 shares, the original secret can be restored. It's basiscly a _double-key_
-system, but then cryptograpically.
+system, but then cryptographically.
 
 An example use case is a beer brewery which has a vault which conains their
 precious super secret recipe. The 5 board members of this brewery do not trust
@@ -72,7 +72,7 @@ is an asynchronous platform after all, so we should use it in that way.
 Note: The Node.js bindings use a different random source than the original
 sss library, namely the builtin Node.js random generator rather than calling
 the OS directly. This is done to make these bindings as portable as possible.
-The Node.js runtime calls OpenSSL for its cryptograpic functions, so it can be
+The Node.js runtime calls OpenSSL for its cryptographic functions, so it can be
 considered secure.
 
 ## Questions
