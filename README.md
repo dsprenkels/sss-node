@@ -54,13 +54,10 @@ let restoredPromise = newSharesPromise.then((x) => {
 });
 
 // Dump the original secret back to the screen
-restoredPromise.then((x) => {
+let main = restoredPromise.then((x) => {
     console.log(x);
-});
-
-// The shares could not restore the secret
-restoredPromise.catch((x) => {
-    console.log("Error: " + x)
+}).catch((x) => {
+    console.log("Error: " + x);
 });
 ```
 
