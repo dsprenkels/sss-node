@@ -12,7 +12,7 @@ all the others well enough that they won't secretly break into the vault and
 sell the recipe to a competitor. So they split the code into 5 shares, and
 allow 3 shares to restore the original code. Now they are sure that the
 majority of the staff will know when the vault is opened, but they also don't
-need _all_ the board members to be present if they wany to open the vault.
+need _all_ the board members to be present if they want to open the vault.
 
 
 ## Installation
