@@ -1,7 +1,7 @@
 # Shamir secret sharing for Node.js
 
 This repository contains a Node.js binding for my general-purpose [Shamir secret
-sharing library][sss]. This library allow a user to split secret data into
+sharing library][sss]. This library allows users to split secret data into
 a number of different _shares_. With the posession of some or all of these
 shares, the original secret can be restored. It's basiscly a _double-key_
 system, but then cryptographically.
