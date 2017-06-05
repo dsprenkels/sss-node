@@ -69,8 +69,8 @@ class CreateSharesWorker : public Nan::AsyncWorker {
 
 class CombineSharesWorker : public Nan::AsyncWorker {
  public:
-  CombineSharesWorker(v8::Local<v8::Object>* shares, uint8_t k,
-                      Nan::Callback *callback)
+  CombineSharesWorker(std::unique_ptr<v8::Local<v8::Object>[]> &shares,
+                      uint8_t k, Nan::Callback *callback)
       : AsyncWorker(callback), k(k) {
     Nan::HandleScope scope;
 
@@ -196,7 +196,7 @@ NAN_METHOD(CombineShares) {
 
   // Extract all the share buffers
   auto k = shares_arr->Length();
-  v8::Local<v8::Object> shares[k];
+  std::unique_ptr<v8::Local<v8::Object>[]> shares(new v8::Local<v8::Object>[k]);
   for (auto idx = 0; idx < k; ++idx) {
     shares[idx] = shares_arr->Get(idx)->ToObject();
   }
