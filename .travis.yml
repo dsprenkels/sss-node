@@ -1,1 +1,17 @@
 language: node_js
+node_js:
+  - "6"
+  - "7"
+env:
+  - "CC=/usr/bin/gcc-5 CXX=/usr/bin/g++-5"
+  - "CC=/usr/bin/clang-3.8 CXX=/usr/bin/clang++-3.8"
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    - llvm-toolchain-precise-3.8
+    packages:
+    - gcc-5
+    - g++-5
+    - clang-3.8
+    - clang++-3.8
