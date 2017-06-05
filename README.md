@@ -1,7 +1,7 @@
 # Shamir secret sharing for Node.js
 
 This repository contains a Node.js binding for my general-purpose [Shamir secret
-sharing library][sss]. This library allow a user to split secret data into
+sharing library][sss]. This library allows users to split secret data into
 a number of different _shares_. With the posession of some or all of these
 shares, the original secret can be restored. It's basiscly a _double-key_
 system, but then cryptographically.
@@ -12,7 +12,7 @@ all the others well enough that they won't secretly break into the vault and
 sell the recipe to a competitor. So they split the code into 5 shares, and
 allow 3 shares to restore the original code. Now they are sure that the
 majority of the staff will know when the vault is opened, but they also don't
-need _all_ the board members to be present if they wany to open the vault.
+need _all_ the board members to be present if they want to open the vault.
 
 
 ## Installation
