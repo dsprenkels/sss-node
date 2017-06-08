@@ -20,7 +20,7 @@ exports.combineShares = function combineShares(shares) {
     _sss.combineShares(shares, resolve);
   }).then((x) => {
     if (x === null) {
-      throw "invalid or too few shares provided";
+      throw "InvalidAccessError: nvalid or too few shares provided";
     } else {
       return x;
     }
