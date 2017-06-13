@@ -1,9 +1,11 @@
 # Shamir secret sharing for Node.js
 
+[![Build Status](https://travis-ci.org/dsprenkels/sss-node.svg?branch=master)](https://travis-ci.org/dsprenkels/sss-node)
+
 This repository contains a Node.js binding for my general-purpose [Shamir secret
 sharing library][sss]. This library allows users to split secret data into
 a number of different _shares_. With the posession of some or all of these
-shares, the original secret can be restored. It's basiscly a _double-key_
+shares, the original secret can be restored. It's essentially a _double-key_
 system, but then cryptographically.
 
 An example use case is a beer brewery which has a vault which conains their
