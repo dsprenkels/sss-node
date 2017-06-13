@@ -6,11 +6,7 @@ const _sss = require("./build/Release/shamirsecretsharing");
 
 exports.createShares = function createShares(data, n, k) {
   return new Promise((resolve) => {
-    // Use node.js native random source for a key
-    crypto.randomBytes(32, (err, random) => {
-      if (err) throw err;
-      _sss.createShares(data, n, k, random, resolve);
-    });
+    _sss.createShares(data, n, k, resolve);
   });
 };
 
@@ -20,7 +16,7 @@ exports.combineShares = function combineShares(shares) {
     _sss.combineShares(shares, resolve);
   }).then((x) => {
     if (x === null) {
-      throw "InvalidAccessError: nvalid or too few shares provided";
+      throw "InvalidAccessError: invalid or too few shares provided";
     } else {
       return x;
     }

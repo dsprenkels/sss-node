@@ -9,37 +9,21 @@
 
 extern "C" {
   #include "sss/sss.h"
-  #include "sss/serialize.h"
 }
 
 
 class CreateSharesWorker : public Nan::AsyncWorker {
  public:
-  CreateSharesWorker(char* data, uint8_t n, uint8_t k, char* random_bytes,
-                     Nan::Callback *callback)
+  CreateSharesWorker(char* data, uint8_t n, uint8_t k, Nan::Callback *callback)
       : AsyncWorker(callback), n(n), k(k) {
     Nan::HandleScope scope;
 
     memcpy(this->data, data, sss_MLEN);
-    memcpy(this->random_bytes, random_bytes, 32);
-    size_t output_size = n * sss_SHARE_SERIALIZED_LEN;
-    if (output_size / sss_SHARE_SERIALIZED_LEN != n) {
-        // Overflow occurred! Is an unreachable state, because `n` is
-        // between 0 and 256, and `sss_SHARE_SERIALIZED_LEN` is a small value.
-        Nan::ThrowError("unreachable state");
-    }
-    this->output = std::unique_ptr<char[]>{ new char[output_size]() };
   }
 
   void Execute() {
-    std::unique_ptr<sss_Share[]> shares(new sss_Share[n]());
-    sss_create_shares(&shares[0], (uint8_t*) data, n, k,
-                      (uint8_t*) random_bytes);
-    for (size_t idx = 0; idx < n; ++idx) {
-      // Multiplication was already checked during constructor
-      size_t offset = idx * sss_SHARE_SERIALIZED_LEN;
-      sss_serialize_share((uint8_t*) &output[offset], &shares[idx]);
-    }
+    this->output = std::unique_ptr<sss_Share[]>{ new sss_Share[n]() };
+    sss_create_shares(output.get(), (uint8_t*) data, n, k);
   }
 
   void HandleOKCallback() {
@@ -49,9 +33,8 @@ class CreateSharesWorker : public Nan::AsyncWorker {
     // Copy the output to a list of node.js buffers
     v8::Local<v8::Array> array = v8::Array::New(isolate, n);
     for (size_t idx = 0; idx < n; ++idx) {
-        size_t offset = idx * sss_SHARE_SERIALIZED_LEN;
-        array->Set(idx, Nan::CopyBuffer(&output[offset],
-            sss_SHARE_SERIALIZED_LEN).ToLocalChecked());
+      array->Set(idx, Nan::CopyBuffer((char*) output[idx],
+        sss_SHARE_LEN).ToLocalChecked());
     }
     v8::Local<v8::Value> argv[] = { array };
 
@@ -62,8 +45,7 @@ class CreateSharesWorker : public Nan::AsyncWorker {
  private:
   uint8_t n, k;
   char data[sss_MLEN];
-  char random_bytes[32];
-  std::unique_ptr<char[]> output;
+  std::unique_ptr<sss_Share[]> output;
 };
 
 
@@ -74,28 +56,14 @@ class CombineSharesWorker : public Nan::AsyncWorker {
       : AsyncWorker(callback), k(k) {
     Nan::HandleScope scope;
 
-    size_t input_size = k * sss_SHARE_SERIALIZED_LEN;
-    if (input_size / sss_SHARE_SERIALIZED_LEN != k) {
-        // Overflow occurred! Is an unreachable state, because `k` is
-        // between 0 and 256, and `sss_SHARE_SERIALIZED_LEN` is a small value.
-        Nan::ThrowError("unreachable state");
-    }
-    this->input = std::unique_ptr<char[]>{ new char[input_size] };
+    this->input = std::unique_ptr<sss_Share[]>{ new sss_Share[k] };
     for (auto idx = 0; idx < k; ++idx) {
-      memcpy(&this->input[idx * sss_SHARE_SERIALIZED_LEN],
-             node::Buffer::Data(shares[idx]),
-             sss_SHARE_SERIALIZED_LEN);
+      memcpy(&this->input[idx], node::Buffer::Data(shares[idx]), sss_SHARE_LEN);
     }
   }
 
   void Execute() {
-    std::unique_ptr<sss_Share[]> shares(new sss_Share[k]());
-    for (auto idx = 0; idx < k; ++idx) {
-      // Multiplication was already checked during constructor
-      size_t offset = idx * sss_SHARE_SERIALIZED_LEN;
-      sss_unserialize_share(&shares[idx], (uint8_t*) &input[offset]);
-    }
-    status = sss_combine_shares((uint8_t*) data, &shares[0], k);
+    status = sss_combine_shares((uint8_t*) data, input.get(), k);
   }
 
   void HandleOKCallback() {
@@ -114,7 +82,7 @@ class CombineSharesWorker : public Nan::AsyncWorker {
 
  private:
   uint8_t k;
-  std::unique_ptr<char[]> input;
+  std::unique_ptr<sss_Share[]> input;
   int status;
   char data[sss_MLEN];
 };
@@ -126,14 +94,12 @@ NAN_METHOD(CreateShares) {
   v8::Local<v8::Value> data_val = info[0];
   v8::Local<v8::Value> n_val = info[1];
   v8::Local<v8::Value> k_val = info[2];
-  v8::Local<v8::Value> random_bytes_val = info[3];
-  v8::Local<v8::Value> callback_val = info[4];
+  v8::Local<v8::Value> callback_val = info[3];
 
   // Type check the arguments
   TYPECHK(!data_val->IsUndefined(), "`data` is not defined");
   TYPECHK(!n_val->IsUndefined(), "`n` is not defined");
   TYPECHK(!k_val->IsUndefined(), "`k` is not defined");
-  TYPECHK(!random_bytes_val->IsUndefined(), "`random_bytes` is not defined");
   TYPECHK(!callback_val->IsUndefined(), "`callback` is not defined");
 
   TYPECHK(data_val->IsObject(), "`data` is not an Object");
@@ -143,20 +109,12 @@ NAN_METHOD(CreateShares) {
   uint32_t n = n_val->Uint32Value();
   TYPECHK(k_val->IsUint32(), "`k` is not a valid integer");
   uint32_t k = k_val->Uint32Value();
-  TYPECHK(random_bytes_val->IsObject(), "`random_bytes` is not an Object");
-  v8::Local<v8::Object> random_bytes = random_bytes_val->ToObject();
-  TYPECHK(node::Buffer::HasInstance(random_bytes),
-          "`random_bytes` must be a Buffer")
   TYPECHK(callback_val->IsFunction(), "`callback` must be a function");
   Nan::Callback *callback = new Nan::Callback(callback_val.As<v8::Function>());
 
   // Check if the buffers have the correct lengths
   if (node::Buffer::Length(data) != sss_MLEN) {
     Nan::ThrowRangeError("`data` buffer size must be exactly 64 bytes");
-    return;
-  };
-  if (node::Buffer::Length(random_bytes) != 32) {
-    Nan::ThrowRangeError("`random_bytes` buffer size must be exactly 32 bytes");
     return;
   };
 
@@ -172,7 +130,7 @@ NAN_METHOD(CreateShares) {
 
   // Create worker
   CreateSharesWorker* worker = new CreateSharesWorker(
-    node::Buffer::Data(data), n, k, node::Buffer::Data(random_bytes), callback);
+    node::Buffer::Data(data), n, k, callback);
   AsyncQueueWorker(worker);
 }
 
@@ -211,7 +169,7 @@ NAN_METHOD(CombineShares) {
 
   // Check if all the elements in the array are of the correct length
   for (auto idx = 0; idx < k; ++idx) {
-    if (node::Buffer::Length(shares[idx]) != sss_SHARE_SERIALIZED_LEN) {
+    if (node::Buffer::Length(shares[idx]) != sss_SHARE_LEN) {
       Nan::ThrowTypeError("array buffer element is not of the correct length");
       return;
     }
