@@ -5,7 +5,7 @@
       "cflags": ["-g -Wall -Wno-sign-compare"],
       "sources": [
         "shamirsecretsharing.cc",
-        "sss/randombytes.c",
+        "sss/randombytes/randombytes.c",
         "sss/sss.c",
         "sss/hazmat.c",
         "sss/keccak.c",

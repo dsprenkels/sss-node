@@ -10,8 +10,7 @@
     "nan": "2.6"
   },
   "scripts": {
-    "test": "node test",
-    "install": "node-gyp rebuild"
+    "test": "node test"
   },
   "gypfile": true
 }
