@@ -69,15 +69,13 @@ As you may have noticed from the example above, all the functions in this
 library return a [Promise] Object. Every call to this library will spin off a
 job on a background thread, allowing the main thread to keep on running other
 stuff.
+
 This design choice does not mean that this library is slow. On the contrary,
 sharing and recombining a secret using this library is very fast. But Node.js
 is an asynchronous platform after all, so we should use it in that way.
-
-Note: The Node.js bindings use a different random source than the original
-sss library, namely the builtin Node.js random generator rather than calling
-the OS directly. This is done to make these bindings as portable as possible.
-The Node.js runtime calls OpenSSL for its cryptographic functions, so it can be
-considered secure.
+Furthermore, in the case that the OS's entropy pool is not yet filled,
+`CreateShares` will wait for the entropy pool to be sufficiently large, which
+may take some time (seconds).
 
 ## Questions
 
