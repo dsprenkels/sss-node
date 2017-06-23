@@ -39,7 +39,7 @@ class CreateSharesWorker : public Nan::AsyncWorker {
     v8::Local<v8::Value> argv[] = { array };
 
     // Call the provided callback
-    callback->Call(1, argv);
+    Nan::Call(**callback, Nan::GetCurrentContext()->Global(), 1, argv);
   }
 
  private:
@@ -77,7 +77,7 @@ class CombineSharesWorker : public Nan::AsyncWorker {
       // Some kind of error occurred, return null
       argv[0] = Nan::Null();
     }
-    callback->Call(1, argv);
+    Nan::Call(**callback, Nan::GetCurrentContext()->Global(), 1, argv);
   }
 
  private:
