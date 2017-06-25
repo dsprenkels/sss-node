@@ -9,6 +9,10 @@
   "dependencies": {
     "nan": "2.6"
   },
+  "devDependencies": {
+    "jsverify": "0.8",
+    "shuffle-array": "1.0"
+  },
   "scripts": {
     "test": "node test"
   },
