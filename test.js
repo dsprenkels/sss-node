@@ -24,4 +24,4 @@ let normalOperation = jsc.forall(jsc.integer(1, 255), jsc.integer(1, 255),
   }
 );
 
-jsc.assert(normalOperation);
+jsc.check(normalOperation, { tests: 2000 });
