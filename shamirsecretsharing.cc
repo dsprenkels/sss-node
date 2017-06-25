@@ -145,9 +145,9 @@ NAN_METHOD(CombineShares) {
   TYPECHK(!shares_val->IsUndefined(), "`shares` is not defined");
   TYPECHK(!callback_val->IsUndefined(), "`callback` is not defined");
 
-  TYPECHK(shares_val->IsObject(), "`data` is not an initialized Object")
+  TYPECHK(shares_val->IsObject(), "`shares` is not an initialized Object")
   v8::Local<v8::Object> shares_obj = shares_val->ToObject();
-  TYPECHK(shares_val->IsArray(), "`data` must be an array of buffers");
+  TYPECHK(shares_val->IsArray(), "`shares` must be an array of buffers");
   v8::Local<v8::Array> shares_arr = shares_obj.As<v8::Array>();
   TYPECHK(callback_val->IsFunction(), "`callback` must be a function");
   Nan::Callback *callback = new Nan::Callback(callback_val.As<v8::Function>());
