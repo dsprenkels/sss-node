@@ -88,6 +88,75 @@ class CombineSharesWorker : public Nan::AsyncWorker {
 };
 
 
+class CreateKeysharesWorker : public Nan::AsyncWorker {
+ public:
+  CreateKeysharesWorker(char* key, uint8_t n, uint8_t k, Nan::Callback *callback)
+      : AsyncWorker(callback), n(n), k(k) {
+    Nan::HandleScope scope;
+
+    memcpy(this->key, key, 32);
+  }
+
+  void Execute() {
+    this->output = std::unique_ptr<sss_Keyshare[]>{ new sss_Keyshare[n]() };
+    sss_create_keyshares(output.get(), (uint8_t*) key, n, k);
+  }
+
+  void HandleOKCallback() {
+    Nan::HandleScope scope;
+    v8::Isolate* isolate = v8::Isolate::GetCurrent();
+
+    // Copy the output keyshares to a list of node.js buffers
+    v8::Local<v8::Array> array = v8::Array::New(isolate, n);
+    for (size_t idx = 0; idx < n; ++idx) {
+      array->Set(idx, Nan::CopyBuffer((char*) output[idx],
+                 sss_KEYSHARE_LEN).ToLocalChecked());
+    }
+    v8::Local<v8::Value> argv[] = { array };
+
+    // Call the provided callback
+    Nan::Call(**callback, Nan::GetCurrentContext()->Global(), 1, argv);
+  }
+
+ private:
+  uint8_t n, k;
+  char key[32];
+  std::unique_ptr<sss_Keyshare[]> output;
+};
+
+
+class CombineKeysharesWorker : public Nan::AsyncWorker {
+ public:
+  CombineKeysharesWorker(std::unique_ptr<v8::Local<v8::Object>[]> &keyshares,
+                         uint8_t k, Nan::Callback *callback)
+      : AsyncWorker(callback), k(k) {
+    Nan::HandleScope scope;
+
+    this->input = std::unique_ptr<sss_Keyshare[]>{ new sss_Keyshare[k] };
+    for (auto idx = 0; idx < k; ++idx) {
+      memcpy(&this->input[idx], node::Buffer::Data(keyshares[idx]),
+             sss_KEYSHARE_LEN);
+    }
+  }
+
+  void Execute() {
+    sss_combine_keyshares((uint8_t*) key, input.get(), k);
+  }
+
+  void HandleOKCallback() {
+    Nan::HandleScope scope;
+
+    v8::Local<v8::Value> argv[] = { Nan::CopyBuffer(key, 32).ToLocalChecked() };
+    Nan::Call(**callback, Nan::GetCurrentContext()->Global(), 1, argv);
+  }
+
+ private:
+  uint8_t k;
+  std::unique_ptr<sss_Keyshare[]> input;
+  char key[32];
+};
+
+
 NAN_METHOD(CreateShares) {
   Nan::HandleScope scope;
 
@@ -181,10 +250,105 @@ NAN_METHOD(CombineShares) {
 }
 
 
+NAN_METHOD(CreateKeyshares) {
+  Nan::HandleScope scope;
+
+  v8::Local<v8::Value> key_val = info[0];
+  v8::Local<v8::Value> n_val = info[1];
+  v8::Local<v8::Value> k_val = info[2];
+  v8::Local<v8::Value> callback_val = info[3];
+
+  // Type check the arguments
+  TYPECHK(!key_val->IsUndefined(), "`key` is not defined");
+  TYPECHK(!n_val->IsUndefined(), "`n` is not defined");
+  TYPECHK(!k_val->IsUndefined(), "`k` is not defined");
+  TYPECHK(!callback_val->IsUndefined(), "`callback` is not defined");
+
+  TYPECHK(key_val->IsObject(), "`key` is not an Object");
+  v8::Local<v8::Object> key = key_val->ToObject();
+  TYPECHK(node::Buffer::HasInstance(key), "`key` must be a Buffer")
+  TYPECHK(n_val->IsUint32(), "`n` is not a valid integer");
+  uint32_t n = n_val->Uint32Value();
+  TYPECHK(k_val->IsUint32(), "`k` is not a valid integer");
+  uint32_t k = k_val->Uint32Value();
+  TYPECHK(callback_val->IsFunction(), "`callback` must be a function");
+  Nan::Callback *callback = new Nan::Callback(callback_val.As<v8::Function>());
+
+  // Check if the buffers have the correct lengths
+  if (node::Buffer::Length(key) != 32) {
+    Nan::ThrowRangeError("`key` buffer size must be exactly 32 bytes");
+    return;
+  };
+
+  // Check if n and k are correct
+  if (n < 1 || n > 255) {
+    Nan::ThrowRangeError("`n` must be between 1 and 255");
+    return;
+  }
+  if (k < 1 || k > n) {
+    Nan::ThrowRangeError("`k` must be between 1 and n");
+    return;
+  }
+
+  // Create worker
+  CreateKeysharesWorker* worker = new CreateKeysharesWorker(
+    node::Buffer::Data(key), n, k, callback);
+  AsyncQueueWorker(worker);
+}
+
+
+NAN_METHOD(CombineKeyshares) {
+  Nan::HandleScope scope;
+
+  v8::Local<v8::Value> keyshares_val = info[0];
+  v8::Local<v8::Value> callback_val = info[1];
+
+  // Type check the argument `keyshares` and `callback`
+  TYPECHK(!keyshares_val->IsUndefined(), "`keyshares` is not defined");
+  TYPECHK(!callback_val->IsUndefined(), "`callback` is not defined");
+
+  TYPECHK(keyshares_val->IsObject(), "`keyshares` is not an initialized Object")
+  v8::Local<v8::Object> keyshares_obj = keyshares_val->ToObject();
+  TYPECHK(keyshares_val->IsArray(), "`keyshares` must be an array of buffers");
+  v8::Local<v8::Array> keyshares_arr = keyshares_obj.As<v8::Array>();
+  TYPECHK(callback_val->IsFunction(), "`callback` must be a function");
+  Nan::Callback *callback = new Nan::Callback(callback_val.As<v8::Function>());
+
+  // Extract all the share buffers
+  auto k = keyshares_arr->Length();
+  std::unique_ptr<v8::Local<v8::Object>[]> keyshares(new v8::Local<v8::Object>[k]);
+  for (auto idx = 0; idx < k; ++idx) {
+    keyshares[idx] = keyshares_arr->Get(idx)->ToObject();
+  }
+
+  // Check if all the elements in the array are buffers
+  for (auto idx = 0; idx < k; ++idx) {
+    if (!node::Buffer::HasInstance(keyshares[idx])) {
+      Nan::ThrowTypeError("array element is not a buffer");
+      return;
+    }
+  }
+
+  // Check if all the elements in the array are of the correct length
+  for (auto idx = 0; idx < k; ++idx) {
+    if (node::Buffer::Length(keyshares[idx]) != sss_KEYSHARE_LEN) {
+      Nan::ThrowTypeError("array buffer element is not of the correct length");
+      return;
+    }
+  }
+
+  // Create worker
+  CombineKeysharesWorker* worker = new CombineKeysharesWorker(keyshares, k, callback);
+  AsyncQueueWorker(worker);
+}
+
+
 void Initialize(v8::Local<v8::Object> exports, v8::Local<v8::Object> module) {
   Nan::HandleScope scope;
   Nan::SetMethod(exports, "createShares", CreateShares);
   Nan::SetMethod(exports, "combineShares", CombineShares);
+  Nan::SetMethod(exports, "createKeyshares", CreateKeyshares);
+  Nan::SetMethod(exports, "combineKeyshares", CombineKeyshares);
 }
 
 
