@@ -22,3 +22,17 @@ exports.combineShares = function combineShares(shares) {
     }
   });
 };
+
+
+exports.createKeyshares = function createKeyshares(key, n, k) {
+  return new Promise((resolve) => {
+    _sss.createKeyshares(key, n, k, resolve);
+  });
+}
+
+
+exports.combineKeyshares = function combineKeyshares(keyshares) {
+  return new Promise((resolve) => {
+    _sss.combineKeyshares(keyshares, resolve);
+  });
+}
