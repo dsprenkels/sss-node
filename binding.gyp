@@ -8,7 +8,6 @@
         "sss/randombytes/randombytes.c",
         "sss/sss.c",
         "sss/hazmat.c",
-        "sss/keccak.c",
         "sss/tweetnacl.c"
       ],
       "include_dirs" : [
