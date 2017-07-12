@@ -2,14 +2,25 @@
 #include <nan.h>
 #include <memory>
 
-#define TYPECHK(expr, msg) if (! expr) { \
-  Nan::ThrowTypeError(msg); \
-  return; \
-}
 
 extern "C" {
   #include "sss/sss.h"
 }
+
+
+struct SSSException : std::exception {
+  SSSException(const char* msg) : msg(msg) {}
+  const char* msg;
+};
+
+struct SSSTypeError : SSSException {
+  SSSTypeError(const char* msg) : SSSException(msg) {}
+
+};
+
+struct SSSRangeError : SSSException {
+  SSSRangeError(const char* msg) : SSSException(msg) {}
+};
 
 
 class CreateSharesWorker : public Nan::AsyncWorker {
@@ -157,189 +168,220 @@ class CombineKeysharesWorker : public Nan::AsyncWorker {
 };
 
 
-NAN_METHOD(CreateShares) {
+void typeChk(bool cond, const char* msg) {
+  if (!cond) {
+    throw SSSTypeError(msg);
+  }
+}
+
+
+void rangeChk(bool cond, const char* msg) {
+  if (!cond) {
+    throw SSSRangeError(msg);
+  }
+}
+
+
+std::pair<uint8_t, uint8_t>
+unpackNK(v8::Local<v8::Value> n_val, v8::Local<v8::Value> k_val) {
   Nan::HandleScope scope;
 
-  v8::Local<v8::Value> data_val = info[0];
-  v8::Local<v8::Value> n_val = info[1];
-  v8::Local<v8::Value> k_val = info[2];
-  v8::Local<v8::Value> callback_val = info[3];
+  if (n_val->IsUndefined()) {
+      throw SSSTypeError("`n` is not defined");
+  }
+  if (k_val->IsUndefined()) {
+      throw SSSTypeError("`k` is not defined");
+  }
 
-  // Type check the arguments
-  TYPECHK(!data_val->IsUndefined(), "`data` is not defined");
-  TYPECHK(!n_val->IsUndefined(), "`n` is not defined");
-  TYPECHK(!k_val->IsUndefined(), "`k` is not defined");
-  TYPECHK(!callback_val->IsUndefined(), "`callback` is not defined");
+  if (!n_val->IsUint32()) {
+      throw SSSTypeError("`n` is not a valid integer");
+  }
+  if (!k_val->IsUint32()) {
+      throw SSSTypeError("`k` is not a valid integer");
+  }
 
-  TYPECHK(data_val->IsObject(), "`data` is not an Object");
-  v8::Local<v8::Object> data = data_val->ToObject();
-  TYPECHK(node::Buffer::HasInstance(data), "`data` must be a Buffer")
-  TYPECHK(n_val->IsUint32(), "`n` is not a valid integer");
   uint32_t n = n_val->Uint32Value();
-  TYPECHK(k_val->IsUint32(), "`k` is not a valid integer");
   uint32_t k = k_val->Uint32Value();
-  TYPECHK(callback_val->IsFunction(), "`callback` must be a function");
-  Nan::Callback *callback = new Nan::Callback(callback_val.As<v8::Function>());
-
-  // Check if the buffers have the correct lengths
-  if (node::Buffer::Length(data) != sss_MLEN) {
-    Nan::ThrowRangeError("`data` buffer size must be exactly 64 bytes");
-    return;
-  };
 
   // Check if n and k are correct
   if (n < 1 || n > 255) {
-    Nan::ThrowRangeError("`n` must be between 1 and 255");
-    return;
+    throw SSSRangeError("`n` must be between 1 and 255");
   }
   if (k < 1 || k > n) {
-    Nan::ThrowRangeError("`k` must be between 1 and n");
-    return;
+    throw SSSRangeError("`k` must be between 1 and n");
   }
 
-  // Create worker
-  CreateSharesWorker* worker = new CreateSharesWorker(
-    node::Buffer::Data(data), n, k, callback);
-  AsyncQueueWorker(worker);
+  return std::make_pair(n, k);
+}
+
+
+char* unpackData(v8::Local<v8::Value> data_val) {
+  Nan::HandleScope scope;
+
+  typeChk(!data_val->IsUndefined(), "`data` is not defined");
+  typeChk(data_val->IsObject(), "`data` is not an Object");
+  v8::Local<v8::Object> data = data_val->ToObject();
+  typeChk(node::Buffer::HasInstance(data), "`data` must be a Buffer");
+  // Check if the buffer has the correct length
+  rangeChk(node::Buffer::Length(data) == sss_MLEN,
+           "`data` buffer size must be exactly 64 bytes");
+  return node::Buffer::Data(data);
+}
+
+
+char* unpackKey(v8::Local<v8::Value> key_val) {
+  Nan::HandleScope scope;
+
+  typeChk(!key_val->IsUndefined(), "`key` is not defined");
+  typeChk(key_val->IsObject(), "`key` is not an Object");
+  v8::Local<v8::Object> key = key_val->ToObject();
+  typeChk(node::Buffer::HasInstance(key), "`key` must be a Buffer");
+  // Check if the buffer has the correct length
+  rangeChk(node::Buffer::Length(key) == 32,
+           "`key` buffer size must be exactly 64 bytes");
+  return node::Buffer::Data(key);
+}
+
+
+Nan::Callback* unpackCallback(v8::Local<v8::Value> callback_val) {
+  Nan::HandleScope scope;
+
+  typeChk(!callback_val->IsUndefined(), "`callback` is not defined");
+  typeChk(callback_val->IsFunction(), "`callback` must be a function");
+  return new Nan::Callback(callback_val.As<v8::Function>());
+}
+
+
+NAN_METHOD(CreateShares) {
+  Nan::HandleScope scope;
+
+  try {
+    char* data = unpackData(info[0]);
+    std::pair<uint8_t, uint8_t> nk = unpackNK(info[1], info[2]);
+    Nan::Callback* callback = unpackCallback(info[3]);
+
+    // Create and start it
+    CreateSharesWorker* worker = new CreateSharesWorker(
+      data, std::get<0>(nk), std::get<1>(nk), callback);
+    AsyncQueueWorker(worker);
+
+  } catch (const SSSTypeError& e) {
+    Nan::ThrowTypeError(e.msg);
+  } catch (const SSSRangeError& e) {
+    Nan::ThrowRangeError(e.msg);
+  }
 }
 
 
 NAN_METHOD(CombineShares) {
   Nan::HandleScope scope;
 
-  v8::Local<v8::Value> shares_val = info[0];
-  v8::Local<v8::Value> callback_val = info[1];
+  try {
+    v8::Local<v8::Value> shares_val = info[0];
 
-  // Type check the argument `shares` and `callback`
-  TYPECHK(!shares_val->IsUndefined(), "`shares` is not defined");
-  TYPECHK(!callback_val->IsUndefined(), "`callback` is not defined");
+    // Type check `shares`
+    typeChk(!shares_val->IsUndefined(), "`shares` is not defined");
+    typeChk(shares_val->IsObject(), "`shares` is not an initialized Object");
+    v8::Local<v8::Object> shares_obj = shares_val->ToObject();
+    typeChk(shares_val->IsArray(), "`shares` must be an array of buffers");
+    v8::Local<v8::Array> shares_arr = shares_obj.As<v8::Array>();
 
-  TYPECHK(shares_val->IsObject(), "`shares` is not an initialized Object")
-  v8::Local<v8::Object> shares_obj = shares_val->ToObject();
-  TYPECHK(shares_val->IsArray(), "`shares` must be an array of buffers");
-  v8::Local<v8::Array> shares_arr = shares_obj.As<v8::Array>();
-  TYPECHK(callback_val->IsFunction(), "`callback` must be a function");
-  Nan::Callback *callback = new Nan::Callback(callback_val.As<v8::Function>());
-
-  // Extract all the share buffers
-  auto k = shares_arr->Length();
-  std::unique_ptr<v8::Local<v8::Object>[]> shares(new v8::Local<v8::Object>[k]);
-  for (auto idx = 0; idx < k; ++idx) {
-    shares[idx] = shares_arr->Get(idx)->ToObject();
-  }
-
-  // Check if all the elements in the array are buffers
-  for (auto idx = 0; idx < k; ++idx) {
-    if (!node::Buffer::HasInstance(shares[idx])) {
-      Nan::ThrowTypeError("array element is not a buffer");
-      return;
+    // Extract all the share buffers
+    auto k = shares_arr->Length();
+    std::unique_ptr<v8::Local<v8::Object>[]> shares(new v8::Local<v8::Object>[k]);
+    for (auto idx = 0; idx < k; ++idx) {
+      shares[idx] = shares_arr->Get(idx)->ToObject();
     }
-  }
 
-  // Check if all the elements in the array are of the correct length
-  for (auto idx = 0; idx < k; ++idx) {
-    if (node::Buffer::Length(shares[idx]) != sss_SHARE_LEN) {
-      Nan::ThrowTypeError("array buffer element is not of the correct length");
-      return;
+    // Check if all the elements in the array are buffers
+    for (auto idx = 0; idx < k; ++idx) {
+      typeChk(node::Buffer::HasInstance(shares[idx]),
+              "array element is not a buffer");
     }
-  }
 
-  // Create worker
-  CombineSharesWorker* worker = new CombineSharesWorker(shares, k, callback);
-  AsyncQueueWorker(worker);
+    // Check if all the elements in the array are of the correct length
+    for (auto idx = 0; idx < k; ++idx) {
+      rangeChk(node::Buffer::Length(shares[idx]) == sss_SHARE_LEN,
+               "array buffer element is not of the correct length");
+    }
+
+    // Unpack the callback function
+    Nan::Callback* callback = unpackCallback(info[1]);
+
+    // Create worker
+    CombineSharesWorker* worker = new CombineSharesWorker(shares, k, callback);
+    AsyncQueueWorker(worker);
+  } catch (const SSSTypeError& e) {
+    Nan::ThrowTypeError(e.msg);
+  } catch (const SSSRangeError& e) {
+    Nan::ThrowRangeError(e.msg);
+  }
 }
 
 
 NAN_METHOD(CreateKeyshares) {
   Nan::HandleScope scope;
 
-  v8::Local<v8::Value> key_val = info[0];
-  v8::Local<v8::Value> n_val = info[1];
-  v8::Local<v8::Value> k_val = info[2];
-  v8::Local<v8::Value> callback_val = info[3];
+  try {
+    char* key = unpackKey(info[0]);
+    std::pair<uint8_t, uint8_t> nk = unpackNK(info[1], info[2]);
+    Nan::Callback *callback = unpackCallback(info[3]);
 
-  // Type check the arguments
-  TYPECHK(!key_val->IsUndefined(), "`key` is not defined");
-  TYPECHK(!n_val->IsUndefined(), "`n` is not defined");
-  TYPECHK(!k_val->IsUndefined(), "`k` is not defined");
-  TYPECHK(!callback_val->IsUndefined(), "`callback` is not defined");
-
-  TYPECHK(key_val->IsObject(), "`key` is not an Object");
-  v8::Local<v8::Object> key = key_val->ToObject();
-  TYPECHK(node::Buffer::HasInstance(key), "`key` must be a Buffer")
-  TYPECHK(n_val->IsUint32(), "`n` is not a valid integer");
-  uint32_t n = n_val->Uint32Value();
-  TYPECHK(k_val->IsUint32(), "`k` is not a valid integer");
-  uint32_t k = k_val->Uint32Value();
-  TYPECHK(callback_val->IsFunction(), "`callback` must be a function");
-  Nan::Callback *callback = new Nan::Callback(callback_val.As<v8::Function>());
-
-  // Check if the buffers have the correct lengths
-  if (node::Buffer::Length(key) != 32) {
-    Nan::ThrowRangeError("`key` buffer size must be exactly 32 bytes");
-    return;
-  };
-
-  // Check if n and k are correct
-  if (n < 1 || n > 255) {
-    Nan::ThrowRangeError("`n` must be between 1 and 255");
-    return;
+    // Create and start worker
+    CreateKeysharesWorker* worker = new CreateKeysharesWorker(
+      key, std::get<0>(nk), std::get<1>(nk), callback);
+    AsyncQueueWorker(worker);
+  } catch (const SSSTypeError& e) {
+    Nan::ThrowTypeError(e.msg);
+  } catch (const SSSRangeError& e) {
+    Nan::ThrowRangeError(e.msg);
   }
-  if (k < 1 || k > n) {
-    Nan::ThrowRangeError("`k` must be between 1 and n");
-    return;
-  }
-
-  // Create worker
-  CreateKeysharesWorker* worker = new CreateKeysharesWorker(
-    node::Buffer::Data(key), n, k, callback);
-  AsyncQueueWorker(worker);
 }
 
 
 NAN_METHOD(CombineKeyshares) {
   Nan::HandleScope scope;
 
-  v8::Local<v8::Value> keyshares_val = info[0];
-  v8::Local<v8::Value> callback_val = info[1];
+  try {
+    v8::Local<v8::Value> keyshares_val = info[0];
 
-  // Type check the argument `keyshares` and `callback`
-  TYPECHK(!keyshares_val->IsUndefined(), "`keyshares` is not defined");
-  TYPECHK(!callback_val->IsUndefined(), "`callback` is not defined");
+    // Type check `keyshares`
+    typeChk(!keyshares_val->IsUndefined(), "`keyshares` is not defined");
+    typeChk(keyshares_val->IsObject(), "`keyshares` is not an initialized Object");
+    v8::Local<v8::Object> keyshares_obj = keyshares_val->ToObject();
+    typeChk(keyshares_val->IsArray(), "`keyshares` must be an array of buffers");
+    v8::Local<v8::Array> keyshares_arr = keyshares_obj.As<v8::Array>();
 
-  TYPECHK(keyshares_val->IsObject(), "`keyshares` is not an initialized Object")
-  v8::Local<v8::Object> keyshares_obj = keyshares_val->ToObject();
-  TYPECHK(keyshares_val->IsArray(), "`keyshares` must be an array of buffers");
-  v8::Local<v8::Array> keyshares_arr = keyshares_obj.As<v8::Array>();
-  TYPECHK(callback_val->IsFunction(), "`callback` must be a function");
-  Nan::Callback *callback = new Nan::Callback(callback_val.As<v8::Function>());
-
-  // Extract all the share buffers
-  auto k = keyshares_arr->Length();
-  std::unique_ptr<v8::Local<v8::Object>[]> keyshares(new v8::Local<v8::Object>[k]);
-  for (auto idx = 0; idx < k; ++idx) {
-    keyshares[idx] = keyshares_arr->Get(idx)->ToObject();
-  }
-
-  // Check if all the elements in the array are buffers
-  for (auto idx = 0; idx < k; ++idx) {
-    if (!node::Buffer::HasInstance(keyshares[idx])) {
-      Nan::ThrowTypeError("array element is not a buffer");
-      return;
+    // Extract all the share buffers
+    auto k = keyshares_arr->Length();
+    std::unique_ptr<v8::Local<v8::Object>[]> keyshares(new v8::Local<v8::Object>[k]);
+    for (auto idx = 0; idx < k; ++idx) {
+      keyshares[idx] = keyshares_arr->Get(idx)->ToObject();
     }
-  }
 
-  // Check if all the elements in the array are of the correct length
-  for (auto idx = 0; idx < k; ++idx) {
-    if (node::Buffer::Length(keyshares[idx]) != sss_KEYSHARE_LEN) {
-      Nan::ThrowTypeError("array buffer element is not of the correct length");
-      return;
+    // Check if all the elements in the array are buffers
+    for (auto idx = 0; idx < k; ++idx) {
+      typeChk(node::Buffer::HasInstance(keyshares[idx]),
+              "array element is not a buffer");
     }
-  }
 
-  // Create worker
-  CombineKeysharesWorker* worker = new CombineKeysharesWorker(keyshares, k, callback);
-  AsyncQueueWorker(worker);
+    // Check if all the elements in the array are of the correct length
+    for (auto idx = 0; idx < k; ++idx) {
+      rangeChk(node::Buffer::Length(keyshares[idx]) == sss_KEYSHARE_LEN,
+               "array buffer element is not of the correct length");
+    }
+
+    // Unpack the callback function
+    Nan::Callback* callback = unpackCallback(info[1]);
+
+    // Create worker
+    CombineKeysharesWorker* worker = new CombineKeysharesWorker(keyshares, k, callback);
+    AsyncQueueWorker(worker);
+  } catch (const SSSTypeError& e) {
+    Nan::ThrowTypeError(e.msg);
+  } catch (const SSSRangeError& e) {
+    Nan::ThrowRangeError(e.msg);
+  }
 }
 
 
