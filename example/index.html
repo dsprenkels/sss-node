@@ -8,50 +8,61 @@
 }
 </style>
 <div>
-    <h3>Input:</h3>
-    <textarea id="input" cols="80" rows="10">Hello World! :D</textarea>
+    <h3>Secret:</h3>
+    <textarea id="message" cols="80" rows="10">Hello World! :D</textarea>
 </div>
 <div>
     <label>share count:</label>
     <input id="count" type="number" min="1" max="255" step="1" value="5">
     <label>threshold:</label>
     <input id="threshold" type="number" min="1" max="255" step="1" value="3">
-    <button id="split_btn">split secret</button>
-    <button id="combine_btn">combine shares</button>
+    <button id="split_btn">split secret 🠗</button>
+    <button id="combine_btn">combine shares 🠕</button>
 </div>
 <div>
-    <h3>Result:</h3>
-    <textarea id="output" cols="80" rows="10"></textarea>
+    <h3>Shares:</h3>
+    <textarea id="shares" cols="80" rows="10"></textarea>
 </div>
 <script type="text/javascript">
 
-function xhrLoadListener(event) {
-    console.log({"received event": event});
-    let outputElem = document.getElementById("output");
+function xhrLoadListener(action, event) {
+    console.log({ "received event": event });
+    let outputElemId;
+    switch (action) {
+        case "split":
+            outputElemId = "shares";
+            break;
+        case "combine":
+            outputElemId = "message";
+            break;
+        default:
+            throw "Bad action ('" + action + "')";
+    }
+    let outputElem = document.getElementById(outputElemId);
     outputElem.value = event.target.responseText;
 }
 
 function do_split() {
-    let input = document.getElementById("input").value;
+    let messageText = document.getElementById("message").value;
     let count = document.getElementById("count").value;
     let threshold = document.getElementById("threshold").value;
 
     let dataParams = [];
-    dataParams.push("data=" + encodeURIComponent(input));
+    dataParams.push("data=" + encodeURIComponent(messageText));
     dataParams.push("count=" + encodeURIComponent(count));
     dataParams.push("threshold=" + encodeURIComponent(threshold));
     let data = dataParams.join("&");
 
     let req = new XMLHttpRequest();
-    req.addEventListener("load", xhrLoadListener);
+    req.addEventListener("load", (event) => xhrLoadListener("split", event));
     req.open("POST", "http://localhost:3000/split", true);
     req.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
     req.send(data);
 }
 
 function do_combine() {
-    let input = document.getElementById("input").value;
-    let lines = input.split("\n");
+    let sharesText = document.getElementById("shares").value;
+    let lines = sharesText.split("\n");
     let dataParams = [];
     for (let i = 0; i < lines.length; i++) {
         let line = lines[i].trim();
@@ -60,7 +71,7 @@ function do_combine() {
     let data = dataParams.join("&");
 
     let req = new XMLHttpRequest();
-    req.addEventListener("load", xhrLoadListener);
+    req.addEventListener("load", (event) => xhrLoadListener("combine", event));
     req.open("POST", "http://localhost:3000/combine", true);
     req.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
     req.send(data);
@@ -72,8 +83,6 @@ function do_combine() {
 
     let combineButton = document.getElementById("combine_btn");
     combineButton.addEventListener("click", do_combine);
-
-    console.log("lsdkfj");
 })();
 
 </script>
