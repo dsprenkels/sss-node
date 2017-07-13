@@ -1,0 +1,23 @@
+{
+  "name": "shamirsecretsharing-example",
+  "version": "0.1.0",
+  "description": "An example front-end for the shamirsecretsharing package",
+  "main": "app.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dsprenkels/sss-node.git"
+  },
+  "author": "Daan Sprenkels <hello@dsprenkels.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/dsprenkels/sss-node/issues"
+  },
+  "homepage": "https://github.com/dsprenkels/sss-node#readme",
+  "dependencies": {
+    "body-parser": "1.17",
+    "cors": "2.8",
+    "express.js": "1.0",
+    "morgan": "1.8",
+    "shamirsecretsharing": "github:dsprenkels/sss-node#master"
+  }
+}
