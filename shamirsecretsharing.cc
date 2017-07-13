@@ -49,8 +49,9 @@ class CreateSharesWorker : public Nan::AsyncWorker {
     }
     v8::Local<v8::Value> argv[] = { array };
 
+
     // Call the provided callback
-    Nan::Call(**callback, Nan::GetCurrentContext()->Global(), 1, argv);
+    callback->Call(1, argv);
   }
 
  private:
@@ -88,7 +89,9 @@ class CombineSharesWorker : public Nan::AsyncWorker {
       // Some kind of error occurred, return null
       argv[0] = Nan::Null();
     }
-    Nan::Call(**callback, Nan::GetCurrentContext()->Global(), 1, argv);
+
+    // Call the provided callback
+    callback->Call(1, argv);
   }
 
  private:
@@ -126,7 +129,7 @@ class CreateKeysharesWorker : public Nan::AsyncWorker {
     v8::Local<v8::Value> argv[] = { array };
 
     // Call the provided callback
-    Nan::Call(**callback, Nan::GetCurrentContext()->Global(), 1, argv);
+    callback->Call(1, argv);
   }
 
  private:
@@ -157,8 +160,11 @@ class CombineKeysharesWorker : public Nan::AsyncWorker {
   void HandleOKCallback() {
     Nan::HandleScope scope;
 
+    // Copy the key to a node.js buffer
     v8::Local<v8::Value> argv[] = { Nan::CopyBuffer(key, 32).ToLocalChecked() };
-    Nan::Call(**callback, Nan::GetCurrentContext()->Global(), 1, argv);
+
+    // Call the provided callback
+    callback->Call(1, argv);
   }
 
  private:
