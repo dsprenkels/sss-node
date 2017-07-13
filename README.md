@@ -12,9 +12,9 @@ An example use case is a beer brewery which has a vault which conains their
 precious super secret recipe. The 5 board members of this brewery do not trust
 all the others well enough that they won't secretly break into the vault and
 sell the recipe to a competitor. So they split the code into 5 shares, and
-allow 3 shares to restore the original code. Now they are sure that the
-majority of the staff will know when the vault is opened, but they also don't
-need _all_ the board members to be present if they want to open the vault.
+allow 4 shares to restore the original code. Now they are sure that the
+majority of the staff will know when the vault is opened, but they can still
+open the vault when one of the staff members is abroad or sick at home.
 
 
 ## Installation
@@ -34,7 +34,7 @@ const sss = require("shamirsecretsharing");
 // Create a buffer for the data that will be shared (must be 64 bytes long)
 const data = Buffer.alloc(64, 0x42);
 const amount = 5;
-const theshold = 3;
+const theshold = 4;
 
 // Creating 5 shares (need 3 to restore)
 let sharesPromise = sss.createShares(data, amount, theshold);
@@ -45,9 +45,9 @@ sharesPromise.then((x) => {
     return x;
 });
 
-// For demonstrational purpose, lose some of the shares
+// For demonstrational purpose, lose one of the shares
 let newSharesPromise = sharesPromise.then((x) => {
-    return [x[3], x[2], x[0]];
+    return [x[3], x[2], x[4], x[0]];
 });
 
 // Restore the original secret
