@@ -12,6 +12,8 @@
         "sss/tweetnacl.c"
       ],
       "include_dirs" : [
+        "sss",
+        "sss/randombytes",
         "<!(node -e \"require('nan')\")"
       ]
     }
