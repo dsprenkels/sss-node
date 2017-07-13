@@ -16,5 +16,6 @@
   "scripts": {
     "test": "node test"
   },
-  "gypfile": true
+  "gypfile": true,
+  "homepage": "https://github.com/dsprenkels/sss-node#readme"
 }
