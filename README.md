@@ -4,11 +4,11 @@
 
 This repository contains a Node.js binding for my general-purpose [Shamir secret
 sharing library][sss]. This library allows users to split secret data into
-a number of different _shares_. With the posession of some or all of these
+a number of different _shares_. With the possession of some or all of these
 shares, the original secret can be restored. It's essentially a _double-key_
 system, but then cryptographically.
 
-An example use case is a beer brewery which has a vault which conains their
+An example use case is a beer brewery which has a vault which contains their
 precious super secret recipe. The 5 board members of this brewery do not trust
 all the others well enough that they won't secretly break into the vault and
 sell the recipe to a competitor. So they split the code into 5 shares, and
