@@ -126,7 +126,7 @@ app.post('/combine', (req, res) => {
   let shares = req.body.share;
   let shareBufs = [];
   for (let i = 0; i < shares.length; i++) {
-    let share = shares[i].trim();
+    let share = shares[i];
     try {
       shareBufs.push(new Buffer(share, "hex"));
     } catch (e) {
