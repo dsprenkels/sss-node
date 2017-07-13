@@ -2,27 +2,33 @@
 <meta charset="utf-8">
 <meta name="description" content="HTML page /w javascript source for using the SSS web API">
 <meta name="author" content="Daan Sprenkels <hello@dsprenkels.com">
-<title>Shamir secret sharing web ui</title>
+<title>Shamir secret sharing web-ui</title>
 <style>
 * {
     font-family: monospace;
 }
 </style>
+<h1>Shamir secret sharing web-ui</h1>
+<p>
+  This page allows you to split your secrets into parts using Daan Sprenkels'
+  <a href="https://github.com/dsprenkels/sss">Shamir secret sharing library</a>.
+  (<a href="https://github.com/dsprenkels/sss-node/tree/master/example">source code</a>)
+</p>
 <div>
-    <h3>Secret:</h3>
-    <textarea id="message" cols="80" rows="10">Hello World! :D</textarea>
+  <h3>Secret:</h3>
+  <textarea id="message" cols="80" rows="10">Hello World! :D</textarea>
 </div>
 <div>
-    <label>share count:</label>
-    <input id="count" type="number" min="1" max="255" step="1" value="5">
-    <label>threshold:</label>
-    <input id="threshold" type="number" min="1" max="255" step="1" value="3">
-    <button id="split_btn">split secret 🠗</button>
-    <button id="combine_btn">combine shares 🠕</button>
+  <label>share count:</label>
+  <input id="count" type="number" min="1" max="255" step="1" value="5">
+  <label>threshold:</label>
+  <input id="threshold" type="number" min="1" max="255" step="1" value="3">
+  <button id="split_btn">split secret 🠗</button>
+  <button id="combine_btn">combine shares 🠕</button>
 </div>
 <div>
-    <h3>Shares:</h3>
-    <textarea id="shares" cols="80" rows="10"></textarea>
+  <h3>Shares:</h3>
+  <textarea id="shares" cols="80" rows="10"></textarea>
 </div>
 <script type="text/javascript">
 

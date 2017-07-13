@@ -1,8 +1,8 @@
-# Web UI for [`sss`][sss]
+# Shamir secret sharing web-ui
 
 This subdirectory of [`sss-node`](https://github.com/dsprenkels/sss-node)
 implements a web interface for splitting and combining secrets using my
-Shamir secret sharing API.
+[Shamir secret sharing library][sss].
 
 ## Usage
 
