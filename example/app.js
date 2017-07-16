@@ -6,12 +6,7 @@
  * Author: Daan Sprenkels <hello@dsprenkels.com>
  *
  * This module contains a proof of concept UI for splitting secrets and
- * restoring them afterwards. The respresention of the shares is:
- * `x(base10)` + '-' + `rest(hex)`
- * This respresention is mainly chosen because hex would be too long, and the
- * difference between base64 and base58 is neglegible. So we go for the format
- * that is easier to read/write by hand (as a user may want to do this some
- * time).
+ * restoring them afterwards. The respresention of the shares is plain hex.
  *
  * WARNING! **This code will leak the message length by timing oracle!**
  * The code in this module is not intended to be side-channel resistant, so do
