@@ -22,7 +22,7 @@ open the vault when one of the staff members is abroad or sick at home.
 Install the library using npm:
 
 ```shell
-npm install --save dsprenkels/sss-node
+npm install --save dsprenkels/sss-node#release-0.x
 ```
 
 ## Usage
