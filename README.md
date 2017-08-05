@@ -77,6 +77,15 @@ Furthermore, in the case that the OS's entropy pool is not yet filled,
 `CreateShares` will wait for the entropy pool to be sufficiently large, which
 may take some time (seconds).
 
+## Changelog
+
+### Version 0.1.1
+
+- Remove an unintended side channel which allows a participating attacker with
+  access to a accurate timing channel to iteratively guess shares during the
+  execution of `combine_shares`.
+
+
 ## Questions
 
 Feel free to send me an email on my GitHub associated e-mail address.
