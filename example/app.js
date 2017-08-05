@@ -36,6 +36,20 @@ function pad(dataBuf) {
   return dataBuf;
 }
 
+function removeDuplicates(shares) {
+  if (!shares) return shares;
+  shares.sort();
+  let i = 1;
+  while (i < shares.length) {
+    if (shares[i].equals(shares[i-1])) {
+      shares.splice(i, 1);
+    } else {
+      i++;
+    }
+  }
+  return shares;
+}
+
 
 function unpad(dataBuf) {
   while (dataBuf[dataBuf.length-1] != 0x80) {
@@ -129,7 +143,7 @@ app.post('/combine', (req, res) => {
       return;
     }
   }
-  let p = sss.combineShares(shareBufs);
+  let p = sss.combineShares(removeDuplicates(shareBufs));
   p.then((dataBuf) => {
     dataBuf = unpad(dataBuf);
     res.send(dataBuf.toString('utf8'));

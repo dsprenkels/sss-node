@@ -24,17 +24,6 @@ let standardOperation = jsc.forall(jsc.integer(1, 255), jsc.integer(1, 255),
   });
 });
 
-let doubleShareTest = jsc.forall(jsc.integer(1, 255), (n) => {
-  let sharesP = sss.createShares(data, n, 1);
-  let restoredP = sharesP.then(shares => {
-    let newShare = shuffle(shares)[0];
-    return sss.combineShares([newShare, newShare]);
-  });
-  return restoredP.then((restored) => {
-    return restored.equals(data);
-  });
-});
-
 let hazmatOperation = jsc.forall(jsc.integer(1, 255), jsc.integer(1, 255),
                                  jsc.integer(1, 255), (n, k, k2) => {
   // Unable to test if `k` or `k2` is larger than `n`
@@ -45,10 +34,9 @@ let hazmatOperation = jsc.forall(jsc.integer(1, 255), jsc.integer(1, 255),
     return sss.combineKeyshares(newKeyshares);
   });
   return restoredP.then((restored) => {
-    return (k2 >= k) == restored.equals(key);
+    return (k2 >= k) === restored.equals(key);
   });
 });
 
 jsc.check(standardOperation, { tests: 1000 });
-jsc.check(doubleShareTest, { tests: 100 });
 jsc.check(hazmatOperation, { tests: 1000 });
