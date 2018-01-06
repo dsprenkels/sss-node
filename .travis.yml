@@ -1,11 +1,22 @@
 language: node_js
 node_js:
-  - "6"
-  - "7"
-  - "8"
+  - "8" # stable
+  - "9" # current
+  - "7" # legacy
 env:
   - "CC=/usr/bin/gcc-5 CXX=/usr/bin/g++-5"
   - "CC=/usr/bin/clang-3.8 CXX=/usr/bin/clang++-3.8"
+matrix:
+  include:
+    - os: osx
+      env: ""
+      node_js: "8"
+    - os: osx
+      env: ""
+      node_js: "9"
+    - os: osx
+      env: ""
+      node_js: "7"
 addons:
   apt:
     sources:
