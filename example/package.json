@@ -14,10 +14,10 @@
   },
   "homepage": "https://github.com/dsprenkels/sss-node#readme",
   "dependencies": {
-    "body-parser": "1.17",
+    "body-parser": "^1.18.3",
     "cors": "2.8",
     "express.js": "1.0",
-    "morgan": "1.8",
+    "morgan": "^1.9.0",
     "shamirsecretsharing": "github:dsprenkels/sss-node#master"
   }
 }
