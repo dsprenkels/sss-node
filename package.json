@@ -1,6 +1,6 @@
 {
   "name": "shamirsecretsharing",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "node.js bindings for the sss secret sharing library",
   "author": "Daan Sprenkels",
   "repository": "https://github.com/dsprenkels/sss-node.git",
