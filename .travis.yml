@@ -10,13 +10,19 @@ matrix:
   include:
     - os: osx
       env: ""
-      node_js: "8"
+      node_js: "10"
     - os: osx
       env: ""
-      node_js: "9"
+      node_js: "11"
     - os: osx
       env: ""
-      node_js: "7"
+      node_js: "12"
+    - os: osx
+      env: ""
+      node_js: "13"
+    - os: osx
+      env: ""
+      node_js: "14"
 addons:
   apt:
     sources:
