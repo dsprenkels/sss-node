@@ -1,11 +1,11 @@
 language: node_js
 node_js:
-  - "8" # stable
-  - "9" # current
-  - "7" # legacy
+  - "10" # maintenance LTS
+  - "12" # activeL TS
+  - "14" # current
 env:
-  - "CC=/usr/bin/gcc-5 CXX=/usr/bin/g++-5"
-  - "CC=/usr/bin/clang-3.8 CXX=/usr/bin/clang++-3.8"
+  - "CC=gcc CXX=g++"
+  - "CC=clang CXX=clang++"
 matrix:
   include:
     - os: osx
@@ -13,23 +13,17 @@ matrix:
       node_js: "10"
     - os: osx
       env: ""
-      node_js: "11"
-    - os: osx
-      env: ""
       node_js: "12"
     - os: osx
       env: ""
-      node_js: "13"
-    - os: osx
-      env: ""
       node_js: "14"
-addons:
-  apt:
-    sources:
-    - ubuntu-toolchain-r-test
-    - llvm-toolchain-precise-3.8
-    packages:
-    - gcc-5
-    - g++-5
-    - clang-3.8
-    - clang++-3.8
+#addons:
+#  apt:
+#    sources:
+#    - ubuntu-toolchain-r-test
+#    - llvm-toolchain-precise-3.8
+#    packages:
+#    - gcc-5
+#    - g++-5
+#    - clang-3.8
+#    - clang++-3.8
