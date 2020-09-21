@@ -1,6 +1,4 @@
-#include <node.h>
 #include <nan.h>
-#include <memory>
 
 
 extern "C" {
@@ -51,7 +49,7 @@ class CreateSharesWorker : public Nan::AsyncWorker {
     v8::Local<v8::Value> argv[] = { array };
 
     // Call the provided callback
-    callback->Call(1, argv);
+    callback->Call(1, argv, async_resource);
   }
 
  private:
@@ -91,7 +89,7 @@ class CombineSharesWorker : public Nan::AsyncWorker {
     }
 
     // Call the provided callback
-    callback->Call(1, argv);
+    callback->Call(1, argv, async_resource);
   }
 
  private:
@@ -125,12 +123,12 @@ class CreateKeysharesWorker : public Nan::AsyncWorker {
     v8::Local<v8::Array> array = v8::Array::New(isolate, n);
     for (size_t idx = 0; idx < n; ++idx) {
       v8::Local<v8::Object> buf = Nan::CopyBuffer((char*) output[idx], sss_KEYSHARE_LEN).ToLocalChecked();
-      array->Set(context, idx, buf);
+      array->Set(context, idx, buf).Check();
     }
     v8::Local<v8::Value> argv[] = { array };
 
     // Call the provided callback
-    callback->Call(1, argv);
+    callback->Call(1, argv, async_resource);
   }
 
  private:
@@ -165,7 +163,7 @@ class CombineKeysharesWorker : public Nan::AsyncWorker {
     v8::Local<v8::Value> argv[] = { Nan::CopyBuffer(key, 32).ToLocalChecked() };
 
     // Call the provided callback
-    callback->Call(1, argv);
+    callback->Call(1, argv, async_resource);
   }
 
  private:
@@ -406,7 +404,7 @@ NAN_METHOD(CombineKeyshares) {
 }
 
 
-void Initialize(v8::Local<v8::Object> exports, v8::Local<v8::Object> module) {
+void Initialize(v8::Local<v8::Object> exports, v8::Local<v8::Value> module, void* priv) {
   Nan::HandleScope scope;
   Nan::SetMethod(exports, "createShares", CreateShares);
   Nan::SetMethod(exports, "combineShares", CombineShares);
