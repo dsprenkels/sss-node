@@ -175,14 +175,14 @@ class CombineKeysharesWorker : public Nan::AsyncWorker {
 };
 
 
-void typeChk(bool cond, const char* msg) {
+static void typeChk(bool cond, const char* msg) {
   if (!cond) {
     throw SSSTypeError(msg);
   }
 }
 
 
-void rangeChk(bool cond, const char* msg) {
+static void rangeChk(bool cond, const char* msg) {
   if (!cond) {
     throw SSSRangeError(msg);
   }
