@@ -1,6 +1,4 @@
-#include <node.h>
 #include <nan.h>
-#include <memory>
 
 
 extern "C" {
@@ -40,18 +38,18 @@ class CreateSharesWorker : public Nan::AsyncWorker {
   void HandleOKCallback() {
     Nan::HandleScope scope;
     v8::Isolate* isolate = v8::Isolate::GetCurrent();
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
     // Copy the output to a list of node.js buffers
     v8::Local<v8::Array> array = v8::Array::New(isolate, n);
     for (size_t idx = 0; idx < n; ++idx) {
-      array->Set(idx, Nan::CopyBuffer((char*) output[idx],
-        sss_SHARE_LEN).ToLocalChecked());
+      v8::Local<v8::Object> buf = Nan::CopyBuffer((char*) output[idx], sss_SHARE_LEN).ToLocalChecked();
+      array->Set(context, idx, buf).ToChecked();
     }
     v8::Local<v8::Value> argv[] = { array };
 
-
     // Call the provided callback
-    callback->Call(1, argv);
+    callback->Call(1, argv, async_resource);
   }
 
  private:
@@ -69,7 +67,7 @@ class CombineSharesWorker : public Nan::AsyncWorker {
     Nan::HandleScope scope;
 
     this->input = std::unique_ptr<sss_Share[]>{ new sss_Share[k] };
-    for (auto idx = 0; idx < k; ++idx) {
+    for (unsigned idx = 0; idx < k; ++idx) {
       memcpy(&this->input[idx], node::Buffer::Data(shares[idx]), sss_SHARE_LEN);
     }
   }
@@ -91,7 +89,7 @@ class CombineSharesWorker : public Nan::AsyncWorker {
     }
 
     // Call the provided callback
-    callback->Call(1, argv);
+    callback->Call(1, argv, async_resource);
   }
 
  private:
@@ -119,17 +117,18 @@ class CreateKeysharesWorker : public Nan::AsyncWorker {
   void HandleOKCallback() {
     Nan::HandleScope scope;
     v8::Isolate* isolate = v8::Isolate::GetCurrent();
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
     // Copy the output keyshares to a list of node.js buffers
     v8::Local<v8::Array> array = v8::Array::New(isolate, n);
     for (size_t idx = 0; idx < n; ++idx) {
-      array->Set(idx, Nan::CopyBuffer((char*) output[idx],
-                 sss_KEYSHARE_LEN).ToLocalChecked());
+      v8::Local<v8::Object> buf = Nan::CopyBuffer((char*) output[idx], sss_KEYSHARE_LEN).ToLocalChecked();
+      array->Set(context, idx, buf).Check();
     }
     v8::Local<v8::Value> argv[] = { array };
 
     // Call the provided callback
-    callback->Call(1, argv);
+    callback->Call(1, argv, async_resource);
   }
 
  private:
@@ -147,7 +146,7 @@ class CombineKeysharesWorker : public Nan::AsyncWorker {
     Nan::HandleScope scope;
 
     this->input = std::unique_ptr<sss_Keyshare[]>{ new sss_Keyshare[k] };
-    for (auto idx = 0; idx < k; ++idx) {
+    for (unsigned idx = 0; idx < k; ++idx) {
       memcpy(&this->input[idx], node::Buffer::Data(keyshares[idx]),
              sss_KEYSHARE_LEN);
     }
@@ -164,7 +163,7 @@ class CombineKeysharesWorker : public Nan::AsyncWorker {
     v8::Local<v8::Value> argv[] = { Nan::CopyBuffer(key, 32).ToLocalChecked() };
 
     // Call the provided callback
-    callback->Call(1, argv);
+    callback->Call(1, argv, async_resource);
   }
 
  private:
@@ -174,14 +173,14 @@ class CombineKeysharesWorker : public Nan::AsyncWorker {
 };
 
 
-void typeChk(bool cond, const char* msg) {
+static void typeChk(bool cond, const char* msg) {
   if (!cond) {
     throw SSSTypeError(msg);
   }
 }
 
 
-void rangeChk(bool cond, const char* msg) {
+static void rangeChk(bool cond, const char* msg) {
   if (!cond) {
     throw SSSRangeError(msg);
   }
@@ -191,6 +190,8 @@ void rangeChk(bool cond, const char* msg) {
 std::pair<uint8_t, uint8_t>
 unpackNK(v8::Local<v8::Value> n_val, v8::Local<v8::Value> k_val) {
   Nan::HandleScope scope;
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
   if (n_val->IsUndefined()) {
       throw SSSTypeError("`n` is not defined");
@@ -206,8 +207,8 @@ unpackNK(v8::Local<v8::Value> n_val, v8::Local<v8::Value> k_val) {
       throw SSSTypeError("`k` is not a valid integer");
   }
 
-  uint32_t n = n_val->Uint32Value();
-  uint32_t k = k_val->Uint32Value();
+  uint32_t n = n_val->Uint32Value(context).ToChecked();
+  uint32_t k = k_val->Uint32Value(context).ToChecked();
 
   // Check if n and k are correct
   if (n < 1 || n > 255) {
@@ -223,10 +224,12 @@ unpackNK(v8::Local<v8::Value> n_val, v8::Local<v8::Value> k_val) {
 
 char* unpackData(v8::Local<v8::Value> data_val) {
   Nan::HandleScope scope;
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
   typeChk(!data_val->IsUndefined(), "`data` is not defined");
   typeChk(data_val->IsObject(), "`data` is not an Object");
-  v8::Local<v8::Object> data = data_val->ToObject();
+  v8::Local<v8::Object> data = data_val->ToObject(context).ToLocalChecked();
   typeChk(node::Buffer::HasInstance(data), "`data` must be a Buffer");
   // Check if the buffer has the correct length
   rangeChk(node::Buffer::Length(data) == sss_MLEN,
@@ -237,10 +240,12 @@ char* unpackData(v8::Local<v8::Value> data_val) {
 
 char* unpackKey(v8::Local<v8::Value> key_val) {
   Nan::HandleScope scope;
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
   typeChk(!key_val->IsUndefined(), "`key` is not defined");
   typeChk(key_val->IsObject(), "`key` is not an Object");
-  v8::Local<v8::Object> key = key_val->ToObject();
+  v8::Local<v8::Object> key = key_val->ToObject(context).ToLocalChecked();
   typeChk(node::Buffer::HasInstance(key), "`key` must be a Buffer");
   // Check if the buffer has the correct length
   rangeChk(node::Buffer::Length(key) == 32,
@@ -281,6 +286,8 @@ NAN_METHOD(CreateShares) {
 
 NAN_METHOD(CombineShares) {
   Nan::HandleScope scope;
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
   try {
     v8::Local<v8::Value> shares_val = info[0];
@@ -288,25 +295,27 @@ NAN_METHOD(CombineShares) {
     // Type check `shares`
     typeChk(!shares_val->IsUndefined(), "`shares` is not defined");
     typeChk(shares_val->IsObject(), "`shares` is not an initialized Object");
-    v8::Local<v8::Object> shares_obj = shares_val->ToObject();
+    v8::Local<v8::Object> shares_obj = shares_val->ToObject(context).ToLocalChecked();
     typeChk(shares_val->IsArray(), "`shares` must be an array of buffers");
     v8::Local<v8::Array> shares_arr = shares_obj.As<v8::Array>();
 
     // Extract all the share buffers
     auto k = shares_arr->Length();
     std::unique_ptr<v8::Local<v8::Object>[]> shares(new v8::Local<v8::Object>[k]);
-    for (auto idx = 0; idx < k; ++idx) {
-      shares[idx] = shares_arr->Get(idx)->ToObject();
+    for (unsigned idx = 0; idx < k; ++idx) {
+      v8::Local<v8::Value> share_val = shares_arr->Get(context, idx).ToLocalChecked();
+      v8::Local<v8::Object> share_obj = share_val->ToObject(context).ToLocalChecked();
+      shares[idx] = share_obj;
     }
 
     // Check if all the elements in the array are buffers
-    for (auto idx = 0; idx < k; ++idx) {
+    for (unsigned idx = 0; idx < k; ++idx) {
       typeChk(node::Buffer::HasInstance(shares[idx]),
               "array element is not a buffer");
     }
 
     // Check if all the elements in the array are of the correct length
-    for (auto idx = 0; idx < k; ++idx) {
+    for (unsigned idx = 0; idx < k; ++idx) {
       rangeChk(node::Buffer::Length(shares[idx]) == sss_SHARE_LEN,
                "array buffer element is not of the correct length");
     }
@@ -347,6 +356,8 @@ NAN_METHOD(CreateKeyshares) {
 
 NAN_METHOD(CombineKeyshares) {
   Nan::HandleScope scope;
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
   try {
     v8::Local<v8::Value> keyshares_val = info[0];
@@ -354,25 +365,27 @@ NAN_METHOD(CombineKeyshares) {
     // Type check `keyshares`
     typeChk(!keyshares_val->IsUndefined(), "`keyshares` is not defined");
     typeChk(keyshares_val->IsObject(), "`keyshares` is not an initialized Object");
-    v8::Local<v8::Object> keyshares_obj = keyshares_val->ToObject();
+    v8::Local<v8::Object> keyshares_obj = keyshares_val->ToObject(context).ToLocalChecked();
     typeChk(keyshares_val->IsArray(), "`keyshares` must be an array of buffers");
     v8::Local<v8::Array> keyshares_arr = keyshares_obj.As<v8::Array>();
 
     // Extract all the share buffers
     auto k = keyshares_arr->Length();
     std::unique_ptr<v8::Local<v8::Object>[]> keyshares(new v8::Local<v8::Object>[k]);
-    for (auto idx = 0; idx < k; ++idx) {
-      keyshares[idx] = keyshares_arr->Get(idx)->ToObject();
+    for (unsigned idx = 0; idx < k; ++idx) {
+      v8::Local<v8::Value> keyshare_val = keyshares_arr->Get(context, idx).ToLocalChecked();
+      v8::Local<v8::Object> keyshare_obj = keyshare_val->ToObject(context).ToLocalChecked();
+      keyshares[idx] = keyshare_obj;
     }
 
     // Check if all the elements in the array are buffers
-    for (auto idx = 0; idx < k; ++idx) {
+    for (unsigned idx = 0; idx < k; ++idx) {
       typeChk(node::Buffer::HasInstance(keyshares[idx]),
               "array element is not a buffer");
     }
 
     // Check if all the elements in the array are of the correct length
-    for (auto idx = 0; idx < k; ++idx) {
+    for (unsigned idx = 0; idx < k; ++idx) {
       rangeChk(node::Buffer::Length(keyshares[idx]) == sss_KEYSHARE_LEN,
                "array buffer element is not of the correct length");
     }
@@ -391,7 +404,7 @@ NAN_METHOD(CombineKeyshares) {
 }
 
 
-void Initialize(v8::Local<v8::Object> exports, v8::Local<v8::Object> module) {
+void Initialize(v8::Local<v8::Object> exports, v8::Local<v8::Value> module, void* priv) {
   Nan::HandleScope scope;
   Nan::SetMethod(exports, "createShares", CreateShares);
   Nan::SetMethod(exports, "combineShares", CombineShares);
